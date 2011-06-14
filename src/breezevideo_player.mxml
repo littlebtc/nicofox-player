@@ -2,7 +2,7 @@
 <mx:Application
 	xmlns:mx="http://www.adobe.com/2006/mxml"
 	xmlns:breezevideo="tc.littleb.breezevideo.*" 
-	creationComplete="creationComplete();"  applicationComplete="Application.application.dispatchEvent(new ResizeEvent('resize'));"
+	creationComplete="creationComplete();"  applicationComplete="applicationComplete();"
 	paddingLeft="0" paddingRight="0" paddingTop="0" paddingBottom="0" 
 	layout="absolute" verticalScrollPolicy="off" horizontalScrollPolicy="off"
 	preloader="NicoFoxPreloader"
@@ -13,11 +13,13 @@
 		<![CDATA[
 			
 			import flash.display.Sprite;
+			import flash.events.MouseEvent;
 			import mx.core.BitmapAsset;
 			import mx.core.UIComponent;
 			import mx.events.*;
 			import mx.controls.Menu;
 			import flash.events.Event;
+			import flash.events.FullScreenEvent;
 			import flash.display.StageDisplayState;
 			import tc.littleb.breezevideo.*;
 			import flash.ui.*;
@@ -75,6 +77,9 @@
 			/* Cache time to reduce the writing to TextField ... Orz */
 			private var _previousTime:int = -1;
 			
+			/* Indicate the aspect ratio: true for 16:9 and false for 4:3 */
+			private var _aspect16By9Mode:Boolean = true;
+			
 			/* creationComplete */
 			private function creationComplete():void
 			{										
@@ -89,6 +94,9 @@
 				
 				//bcomment.uploaderCommentFile = uploader_comment_file;
 								
+				bcomment.width = PlayerParams.PLAYER_WIDTH_16_BY_9;
+				bcomment.height = PlayerParams.PLAYER_HEIGHT;
+				
 				bvideo.addEventListener('timeUpdate', updateTime);
 				bvideo.addEventListener('seeked', updateSeeked);
 				bvideo.addEventListener('ended', updatePlaybackStatus);				
@@ -103,11 +111,15 @@
 				repeat_switch.addEventListener(MouseEvent.CLICK, toggleRepeat);
 				muteButton.addEventListener(MouseEvent.CLICK, toggleMute);
 				volslider.addEventListener(SliderEvent.CHANGE, changeVolume);
-				fullscreen.addEventListener(MouseEvent.CLICK, goFullscreen);				
+				aspectButton.addEventListener(MouseEvent.CLICK, toggleAspect);
+				fullscreen.addEventListener(MouseEvent.CLICK, toggleFullscreen);
 				
-				Application.application.addEventListener('resize', goResize );
-				
-
+				Application.application.addEventListener('resize', resizeHandler );
+			}
+			/* Application will be ready in this event, set fullscreen handler and dispatch a resize event. */
+			private function applicationComplete():void {
+				Application.application.stage.addEventListener(FullScreenEvent.FULL_SCREEN, fullScreenHandler);
+				Application.application.dispatchEvent(new ResizeEvent('resize'));
 			}
 			/* Loading Frame, Phase 2: draw */
 			private function drawLoading():void {
@@ -133,17 +145,76 @@
 			}
 			
 			/* When resize, reallocate components on the player */
-			private function goResize(e:Event):void
+			private function resizeHandler(e:Event):void
 			{
 				if (loadingCanvas.visible) { resizeLoading(); }
-				
-				slider.width = 	Application.application.width - 420;
+				var playerWidth:int = PlayerParams.PLAYER_WIDTH_4_BY_3;
+				var playerHeight:int = PlayerParams.PLAYER_HEIGHT;
+				if (_aspect16By9Mode) {
+					playerWidth = PlayerParams.PLAYER_WIDTH_16_BY_9;
+				} else {
+					
+				}
+				slider.width = 	Application.application.width - 480;
 				var scale:Number;
 				container2.y = Application.application.height - container2.height;
-				if (Application.application.stage && 
-				Application.application.stage.displayState != StageDisplayState.FULL_SCREEN)
+				/* When leaving the fullscreen mode, this will be triggered once. 
+				 * Remove events for autohide controls here. */
+				if (Application.application.stage && Application.application.stage.displayState != StageDisplayState.FULL_SCREEN)
 				{
+					scale = Math.min(((Application.application.height - container2.height) / playerHeight), (Application.application.width / playerWidth));
+					black_container.height = Application.application.height - container2.height;
+		
+				} else {
+					scale = Math.min((Application.application.height / playerHeight), (Application.application.width / playerWidth));
+					black_container.height = Application.application.height;
+					big_container.y = 0;
+				}
+				
+				bcomment.scaleX = scale;
+				bcomment.scaleY = scale;
+				black_container.width = Application.application.width;
+				
+				bvideo.width = (playerWidth - PlayerParams.PLAYER_HORIZONTAL_MARGIN * 2) * scale;
+				bvideo.height = playerHeight * scale;
+				
+				black_container.x = 0;
+				black_container.y = 0;
+											
+				
+			}
+			/* Toggle the fullscreen status via the button */
+			private function toggleFullscreen(e:Event):void
+			{
+				if (Application.application.stage.displayState == StageDisplayState.FULL_SCREEN)
+				{
+					Application.application.stage.displayState = StageDisplayState.NORMAL;					
+				} else {
+					var fullScreenRadio:Number = Application.application.stage.fullScreenWidth / Application.application.stage.fullScreenHeight;
+					if (fullScreenRadio > 512 / 384) {
+						stage.fullScreenSourceRect = new Rectangle(0, 0, 600 * fullScreenRadio, 600);
+					} else {
+						stage.fullScreenSourceRect = new Rectangle(0, 0, 800, 800 / fullScreenRadio);
+					}
+					Application.application.stage.displayState = StageDisplayState.FULL_SCREEN;
+				}
+			}
+			/* When switching from fullscreen mode and normal mode,
+			 * set/unset the timer that is used to hide the controls. */ 
+			private function fullScreenHandler(event:FullScreenEvent):void {
+				if (event.fullScreen) {
+					container2.setStyle('backgroundAlpha', 0.5);
+					screen_img = screen_img_win;
+					big_container.addEventListener(MouseEvent.MOUSE_MOVE, checkMouse);
+					container2.addEventListener(MouseEvent.MOUSE_OVER, checkMouse);					
+				
+					hide_timeout = setTimeout(hideNav, 1500);
+					hide_timeout_activated = true;
+					mouse_timeout = setTimeout(hideMouse, 1500);
+					mouse_timeout_activated = true;
+				} else {
 					container2.setStyle('backgroundAlpha', 1);
+					container2.visible = true;
 					screen_img = screen_img_full;
 					/* Change from fullscreen to normal */
 					if (hide_timeout_activated) {
@@ -158,62 +229,28 @@
 					Mouse.show();
 					big_container.removeEventListener(MouseEvent.MOUSE_MOVE, checkMouse);
 					container2.removeEventListener(MouseEvent.MOUSE_OVER, checkMouse);
-										
-					
-					black_container.width = 512;
-					black_container.height = 384;
-					// Let the Navigation back!
-					container2.visible = true;
-					scale = Math.min(((Application.application.height - container2.height) / 384), (Application.application.width / 512));
-					black_container.height = Application.application.height - container2.height;
-		
-				} else {
-					container2.setStyle('backgroundAlpha', 0.5);
-					screen_img = screen_img_win;
-					scale = Math.min((Application.application.height / 384), (Application.application.width / 512));
-					black_container.height = Application.application.height;
-
-					big_container.y = 0;
-				
-				}
-				
-				bcomment.scaleX = scale;
-				bcomment.scaleY = scale;
-				black_container.width = Application.application.width;
-				
-				
-				bvideo.width = 512 * scale;
-				bvideo.height = 384 * scale;
-				
-				black_container.x = 0;
-				black_container.y = 0;
-											
-				
-			}
-			/* Switch to fullscreen, activate navigation and mouse hiding timeout */
-			private function goFullscreen(e:Event):void
-			{
-				if (Application.application.stage.displayState == StageDisplayState.FULL_SCREEN)
-				{
-					Application.application.stage.displayState = StageDisplayState.NORMAL;					
-				} else {
-					var fullScreenRadio:Number = Application.application.stage.fullScreenWidth / Application.application.stage.fullScreenHeight;
-					if (fullScreenRadio > 512 / 384) {
-						stage.fullScreenSourceRect = new Rectangle(0, 0, 600 * fullScreenRadio, 600);
-					} else {
-						stage.fullScreenSourceRect = new Rectangle(0, 0, 800, 800 / fullScreenRadio);
-					}
-					Application.application.stage.displayState = StageDisplayState.FULL_SCREEN;
-					big_container.addEventListener(MouseEvent.MOUSE_MOVE, checkMouse);
-					container2.addEventListener(MouseEvent.MOUSE_OVER, checkMouse);					
-				
-					hide_timeout = setTimeout(hideNav, 1500);
-					hide_timeout_activated = true;
-					mouse_timeout = setTimeout(hideMouse, 1500);
-					mouse_timeout_activated = true;	
 				}
 			}
 			
+			public function get aspect16By9Mode():Boolean {
+				return _aspect16By9Mode;
+			}
+			/* Setter that will be triggered by UI or BreezeVideo to toggle the 16:9 mode. */
+			public function set aspect16By9Mode(mode:Boolean):void {
+				 _aspect16By9Mode = mode;
+				 bcomment.aspect16By9Mode = mode;
+				 /* Dispatch a resize event */
+				 Application.application.dispatchEvent(new ResizeEvent('resize'));
+			}
+			public function toggleAspect(e:MouseEvent):void {
+				if (_aspect16By9Mode) {
+					aspect16By9Mode = false;
+					aspectButton.label = "4:3";
+				} else {
+					aspect16By9Mode = true;
+					aspectButton.label = "16:9";
+				}
+			}
 			/* In fullscreen mode, when mouse moves, 
 			 * show the pointer, and determine whether to show the navigation bar */
 			private function checkMouse(e:MouseEvent):void 
@@ -467,13 +504,9 @@
 
 	<!-- We set playbackUpdateInterval as 20, because the "vpos" of comment XML is in 10 milliseconds -->	
     <mx:VBox id="big_container" width="100%" x="0" y="0" visible="true">    	   
-		<mx:Canvas id="black_container" width="100%" height="384" backgroundColor="black">	
-		<breezevideo:BreezeVideo id="bvideo" autoPlay="false" width="512" height="384" horizontalCenter="0" verticalCenter="0" volume="0.75" />
-	    <!--<breezevideo:BreezeVideoOld width="512" height="384" volume="{volslider.value}" source="{video_file}" autoPlay="true" id="bvideo" playheadUpdateInterval="30" x="0" y="0" autoRewind="false"  horizontalCenter="0" verticalCenter="0"  />-->
-		
-        <!--<mx:Canvas id="comment_container" x="0" y="0" width="512" height="384"  visible="true" verticalScrollPolicy="off" horizontalScrollPolicy="off"  horizontalCenter="0" verticalCenter="0">-->
-		<!--</mx:Canvas>-->
-        <breezevideo:Comment id="bcomment" x="0" y="0" width="512" height="384"  visible="true" horizontalCenter="0" verticalCenter="0" />
+		<mx:Canvas id="black_container" width="100%" height="384" backgroundColor="black" horizontalScrollPolicy="off">
+			<breezevideo:BreezeVideo id="bvideo" autoPlay="false" horizontalCenter="0" verticalCenter="0" volume="0.75" />
+			<breezevideo:Comment id="bcomment" x="0" y="0" visible="true" horizontalCenter="0" verticalCenter="0" />
         </mx:Canvas>
                 
     </mx:VBox>
@@ -486,7 +519,8 @@
 		<mx:Text id="timeText" text="" minWidth="90" />
 		
 		<mx:Button id="repeat_switch" icon="{repeat_img}" width="25"/>							
-		<mx:PopUpButton id="commentButton" width="120" />		
+		<mx:PopUpButton id="commentButton" width="120" />
+		<mx:Button id="aspectButton" label="16:9" width="50" />
 		
 		<mx:Button id="muteButton" icon="{volume_img}" width="20" />
 		<mx:HSlider id="volslider" showTrackHighlight="true" tickInterval="0.05" value="0.75" width="55"  maximum="1" />

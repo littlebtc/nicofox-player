@@ -9,6 +9,7 @@ package tc.littleb.breezevideo
 		private var time:Number;
 		private var comment_type:String;
 		private const comment_max:int = 50;
+		private var _nakaInitXOffset:int;
 		
 		//private var comment_pool:Array;
 		
@@ -20,6 +21,15 @@ package tc.littleb.breezevideo
 				return false;				
 			}
 
+			/* Calculate the init X offset for "naka" comments,
+			 * where comments should be placed 1sec before the commment position.
+			 * | 16:9 Range           |
+			 * |    | 4:3 Range |     |
+			 *                  ^ 
+			 *                  ^----------nakaInitXOffset
+			 * */
+			_nakaInitXOffset = PlayerParams.PLAYER_WIDTH_4_BY_3 + (PlayerParams.PLAYER_WIDTH_16_BY_9 - PlayerParams.PLAYER_WIDTH_4_BY_3) / 2;
+			 
 			this.comment_type = new_type;
 			//this.cacheAsBitmap = true;
 			//nico_bevel_black = nico_bevel.clone();
@@ -82,9 +92,9 @@ package tc.littleb.breezevideo
 			var use_field:CommentTextField = use_object as CommentTextField;
 			use_field.comment_for = info.no;
 			clearInterval(use_field.interval_id);			
-			use_field.x = 512;
+			use_field.x = PlayerParams.PLAYER_WIDTH_16_BY_9;
 			if (this.comment_type == 'shita') {
-				use_field.y = 384;
+				use_field.y = PlayerParams.PLAYER_HEIGHT;
 			} else {
 				use_field.y = 0;
 			}
@@ -98,22 +108,32 @@ package tc.littleb.breezevideo
 					//use_field.interval_id = setInterval(updateNakaPosition, 50, use_object);
 			} else {
 					/* Scaling for non-naka */
+					
+					/* Determine the "Resize base width". 
+					 * If "full" command is used, base will be PlayerParams.PLAYER_WIDTH_16_BY_9.
+					 * otherwise PlayerParams.PLAYER_WIDTH_4_BY_3 will be used. */
+					var resizeBase:int = PlayerParams.PLAYER_WIDTH_4_BY_3 - PlayerParams.PLAYER_HORIZONTAL_MARGIN * 2;
+					if (info.full) {
+						resizeBase = PlayerParams.PLAYER_WIDTH_16_BY_9 - PlayerParams.PLAYER_HORIZONTAL_MARGIN * 2;
+					}
+					
 					var scale:Number = 1.0;
 					
-					if (use_field.height *3 > 384)
+					if (use_field.height * 3 > PlayerParams.PLAYER_HEIGHT)
 					{
-						use_field.scaleY = 0.5;														
+						use_field.scaleY = 0.5;
 						use_field.scaleX = 0.5;
 					}
-					if (use_field.width > 512)
+					if (use_field.width > resizeBase)
 					{							
-						scale =  512.00 / use_field.width;
+						scale = resizeBase / use_field.width;
 						use_field.scaleY = scale;
-						use_field.scaleX = scale;							
+						use_field.scaleX = scale;		
 					}
-					use_field.x = (512-use_field.width)/2.00;
+					/* Place the comment to the center of the sprite. */
+					use_field.x = (PlayerParams.PLAYER_WIDTH_16_BY_9 - use_field.width) / 2.00;
 					if (this.comment_type == 'shita') {
-						use_field.y = 384-use_field.height;
+						use_field.y = PlayerParams.PLAYER_HEIGHT - use_field.height;
 					}
 			}
 			var plus_height_self:int = 0;
@@ -122,7 +142,7 @@ package tc.littleb.breezevideo
 			if (this.comment_type == 'shita') {
 				hit_objects.sortOn('y', Array.NUMERIC|Array.DESCENDING);
 				plus_height_self = -1;
-				use_object.y = 384-use_object.height;
+				use_object.y = PlayerParams.PLAYER_HEIGHT - use_object.height;
 			} else {
 				hit_objects.sortOn('y', Array.NUMERIC);
 				plus_height_other = 1;
@@ -132,7 +152,9 @@ package tc.littleb.breezevideo
 					for each(hit_object in hit_objects)
 					{
 																				
-						var future_x:Number = hit_object.x+(512+hit_object.width)*(this.time-use_field.vpos-300) / 400 + hit_object.width;		
+						var future_x:Number = hit_object.x +
+						(PlayerParams.PLAYER_WIDTH_4_BY_3 + hit_object.width) * (this.time - use_field.vpos - 300) / 400
+						+ hit_object.width;
 						/* naka needs another test, so i write a complex (ab')' logic (a:naka b:check). it can be verified by truth table */
 						if (yHitTest(hit_object.y, hit_object.height, use_object.y, use_object.height)
 						&& (
@@ -142,9 +164,9 @@ package tc.littleb.breezevideo
 						)
 							{							
 								use_object.y = hit_object.y + plus_height_self * use_object.height + plus_height_other * hit_object.height;
-								if (use_object.y +use_object.height > 384 || use_object.y < 0)
+								if (use_object.y +use_object.height > PlayerParams.PLAYER_HEIGHT || use_object.y < 0)
 								{
-									use_object.y  = Math.random() * (Math.max(0, (384-use_object.height)));
+									use_object.y  = Math.random() * (Math.max(0, (PlayerParams.PLAYER_HEIGHT - use_object.height)));
 									break;
 								}
 							}						
@@ -168,8 +190,9 @@ package tc.littleb.breezevideo
 				object = this.getChildAt(i);
 				var field:CommentTextField = object as CommentTextField;
 				
+				/* To avoid high load for larger comments, make larger comment updates randomly with lower fps */
 				if (field.width < 256 || Math.random() * Math.pow(Math.min(field.width / 256, 10) * _previousTime, 2)  < 5) {
-					field.x = 512 + (512 + field.width) * (field.vpos - 100 - this.time) / 400;
+					field.x = _nakaInitXOffset + (PlayerParams.PLAYER_WIDTH_4_BY_3 + field.width) * (field.vpos - 100 - this.time) / 400;
 					commentArea += field.x * field.y;
 				}
 				object = null;

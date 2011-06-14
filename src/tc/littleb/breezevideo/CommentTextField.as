@@ -20,6 +20,7 @@ package tc.littleb.breezevideo
 				throw new Error('CommentTextField: Unreconized Type.');
 				return false;				
 			}
+			comment_type = new_type;
 			var format:TextFormat = new TextFormat();								
 			format.size = 24;		
 			format.bold = true;					
@@ -49,84 +50,51 @@ package tc.littleb.breezevideo
 			this.selectable = false;		
 		}
 		public function resetFormat():void {
-			//this.setTextFormat(this.defaultTextFormat);
+			this.setTextFormat(this.defaultTextFormat);
 			//this.filters = [nico_bevel];
 			this.text = '';
 			this.comment_for = -1;
+			this.scaleX = 1;
+			this.scaleY = 1;
 		}
 		public function formatSelect(size:String, color:String):void
 		{
 			var size_int:int = 24;
 			var color_num:Number = 0xFFFFFF;
-			/*if (is_kavideo)
+			switch(size)
 			{
-				switch(size)
-				{				
-					case '0': size_int = 20; break;
-					case '1': size_int = 24; break;
-					case '2': size_int = 28; break;
-				}
-			}
-			else
-			{*/
-				switch(size)
-				{
-					case 'small': size_int = 15; break;
-					case 'medium': size_int = 24; break;
-					case 'big': size_int = 39; break;
-				}				
-			/*}*/
-			
-		
-			/*if (is_kavideo)
+				case 'small': size_int = 15; break;
+				case 'medium': size_int = 24; break;
+				case 'big': size_int = 39; break;
+			}				
+			switch (color)
 			{
-				switch(color)
-				{
-					case '0': return 0xFFFFFF; break;
-					case '1': return 0x999999; break;
-					case '2': return 0xFF0000; break;
-					case '3': return 0x00FF00; break;
-					case '4': return 0x0000FF; break;
-					case '5': return 0xFFFF00; break;
-					case '6': return 0xFF00FF; break;
-					case '7': return 0x336699; break;
-					case '8': return 0x333333; break;
-					case '9': return 0x7200FF; break;
-					case '10': return 0xFF6000; break;
-					case '11': return 0x7200FF; break;
-					case '12': return 0x7E2F00; break;
-				
-				}
-			} else	{*/
-				switch (color)
-				{
-					case 'red':	   color_num = 0xFF0000; break;
-					case 'pink':   color_num = 0xFF8080; break;
-					case 'orange': color_num = 0xFFCC00; break;
-					case 'yellow': color_num = 0xFFFF00; break;
-					case 'green': color_num = 0x00FF00; break;
-					case 'cyan': color_num = 0x00FFFF; break;
-					case 'blue': color_num = 0x0000FF; break;
-					case 'purple': color_num = 0xC000FF; break;
+				case 'red':	   color_num = 0xFF0000; break;
+				case 'pink':   color_num = 0xFF8080; break;
+				case 'orange': color_num = 0xFFCC00; break;
+				case 'yellow': color_num = 0xFFFF00; break;
+				case 'green': color_num = 0x00FF00; break;
+				case 'cyan': color_num = 0x00FFFF; break;
+				case 'blue': color_num = 0x0000FF; break;
+				case 'purple': color_num = 0xC000FF; break;
 	
-					case 'niconicowhite': color_num = 0xCCCC99; break;
-					case 'white2': color_num = 0xCCCC99; break;
-					case 'truered': color_num = 0xCC0033; break;
-					case 'red2': color_num = 0xCC0033; break;
-					case 'passionorange': color_num = 0xFF6600; break;
-					case 'orange2': color_num = 0xFF6600; break;
-					case 'madyellow': color_num = 0x999900; break;
-					case 'yellow2': color_num = 0x999900; break;
-					case 'elementalgreen': color_num = 0x00CC66; break;
-					case 'green2': color_num = 0x00CC66; break;
-					case 'marineblue': color_num = 0x33FFFC; break;
-					case 'blue2': color_num = 0x33FFFC; break;
-					case 'nobleviolet': color_num = 0x6633CC; break;
-					case 'purple2': color_num = 0x6633CC; break;
+				case 'niconicowhite': color_num = 0xCCCC99; break;
+				case 'white2': color_num = 0xCCCC99; break;
+				case 'truered': color_num = 0xCC0033; break;
+				case 'red2': color_num = 0xCC0033; break;
+				case 'passionorange': color_num = 0xFF6600; break;
+				case 'orange2': color_num = 0xFF6600; break;
+				case 'madyellow': color_num = 0x999900; break;
+				case 'yellow2': color_num = 0x999900; break;
+				case 'elementalgreen': color_num = 0x00CC66; break;
+				case 'green2': color_num = 0x00CC66; break;
+				case 'marineblue': color_num = 0x33FFFC; break;
+				case 'blue2': color_num = 0x33FFFC; break;
+				case 'nobleviolet': color_num = 0x6633CC; break;
+				case 'purple2': color_num = 0x6633CC; break;
 					
-					case 'black': color_num = 0x000000; break;
-				}
-			/*}*/
+				case 'black': color_num = 0x000000; break;
+			}
 			var format:TextFormat = defaultTextFormat;
 			
 			// Suport #xxxxxx HTML color code

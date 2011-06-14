@@ -67,7 +67,7 @@
 			if (url.match(/\.swf$/)) {
 				/* Initialize Loader */
 				var loaderTemp:Loader = new Loader();
-				_swfLoader = Loader(this.addChild(loaderTemp));				
+				_swfLoader = Loader(this.addChild(loaderTemp));
 				_swfLoader.contentLoaderInfo.addEventListener(Event.COMPLETE, swfComplete);
 				
 				/* Set up the mask */
@@ -245,16 +245,18 @@
 		private function resize(e:Event):void {
 			var scale:Number;
 			if (_isSwf && _swfMovieClip) {
-				scale = Math.min(super.width / 512, super.height / 384);
+				scale = Math.min(super.width / _swfMovieClip.width, super.height / _swfMovieClip.height);
 				_swfLoader.scaleX = scale;
 				_swfLoader.scaleY = scale;
+				_swfLoader.x = (super.width - _swfLoader.width) / 2;
+				_swfLoader.y = (super.height - _swfLoader.height) / 2;
 				
 				/* Set up the mask */
 				_swfMask.graphics.clear();
 				_swfMask.graphics.beginFill(0xFF0000);
 				_swfMask.graphics.drawRect(0, 0, super.width, super.height);				
 				_swfMask.graphics.endFill();
-				//_swfLoader.mask = _swfMask;				
+				_swfLoader.mask = _swfMask;				
 			
 			} else if (_video) {
 				scale = Math.min(super.width / _streamWidth, super.height / _streamHeight);

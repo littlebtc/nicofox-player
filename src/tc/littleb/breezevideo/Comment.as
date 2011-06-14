@@ -26,6 +26,7 @@ package tc.littleb.breezevideo
 		private var _commentXML:XML;
 		
 		private var _firstCommentIndex:int = -1;
+		private var _firstNakaCommentIndex:int = -1;
 		private var _lastCommentIndex:int = -1;
 		private var _lastNakaCommentIndex:int = -1;
 
@@ -39,6 +40,14 @@ package tc.littleb.breezevideo
 		/* Indicate whether we should stop updating comments */
 		public var _freezed:Boolean;
 		
+		/* Mask sprite used to hide the CommentSprites */
+		private var _nakaMask:Sprite;
+		private var _shitaMask:Sprite;
+		private var _ueMask:Sprite;
+
+		/* Indicate the aspect ratio: true for 16:9 and false for 4:3 */
+		private var _aspect16By9Mode:Boolean = true;		
+		
 		// private var is_kavideo:Boolean;
 		
 		public function Comment()
@@ -51,9 +60,16 @@ package tc.littleb.breezevideo
 			_ueSprite = new CommentSprite('ue');
 			
 			_uic = new UIComponent();
-			_ueSprite.mask = generateMask();
-			_shitaSprite.mask = generateMask();
-			_nakaSprite.mask = generateMask();
+			_nakaMask = new Sprite();
+			_nakaMask = Sprite(_uic.addChild(_nakaMask));
+			_ueMask = new Sprite();
+			_ueMask = Sprite(_uic.addChild(_ueMask));
+			_shitaMask = new Sprite();
+			_shitaMask = Sprite(_uic.addChild(_shitaMask));
+			generateMask();
+			_ueSprite.mask = _ueMask;
+			_shitaSprite.mask = _shitaMask;
+			_nakaSprite.mask = _nakaMask;
 			
 			_uic.addChild(_ueSprite);
 			_uic.addChild(_shitaSprite);
@@ -64,12 +80,19 @@ package tc.littleb.breezevideo
 			
 		}
 		/* Generate a mask for sprite */
-		private function generateMask():Sprite {
-			var square:Sprite = new Sprite();
-			square.graphics.beginFill(0xFF0000);
-			square.graphics.drawRect(0, 0, 512, 384);
-			square = Sprite(_uic.addChild(square));
-			return square;
+		private function generateMask():void {
+			for each (var mask:Sprite in [_nakaMask, _ueMask, _shitaMask]) {
+				mask.graphics.clear();
+				mask.graphics.beginFill(0xFF0000);
+				if (_aspect16By9Mode) {
+					mask.graphics.drawRect(0, 0, PlayerParams.PLAYER_WIDTH_16_BY_9, PlayerParams.PLAYER_HEIGHT);
+				} else {
+					/* For 4:3 mode, hide the extra part */
+					var xOffset:Number = (PlayerParams.PLAYER_WIDTH_16_BY_9 - PlayerParams.PLAYER_WIDTH_4_BY_3) / 2;
+					mask.graphics.drawRect(xOffset, 0, PlayerParams.PLAYER_WIDTH_4_BY_3, PlayerParams.PLAYER_HEIGHT);				
+				}
+				mask.graphics.endFill();
+			}
 		}
 		private function _loadComment(url:String):void
 		{
@@ -84,16 +107,7 @@ package tc.littleb.breezevideo
 			
 			var request:URLRequest = new URLRequest(url);
 			var loader:URLLoader = new URLLoader(); 
-			// If it is KeyTalks JSON, try to parse it as JSON
-			//* TODO: KeyTalks support is temporary removed
-			/*var is_json:RegExp = /\.json$/;
-			if (url.match(is_json)) {
-				is_kavideo = true;
-				loader.addEventListener(Event.COMPLETE, goParseJSON);           	
-			} else {
-				is_kavideo = false;
-				loader.addEventListener(Event.COMPLETE, goParse);
-			}*/
+
 			loader.addEventListener(Event.COMPLETE, goParse);
 			loader.addEventListener(IOErrorEvent.IO_ERROR, _failRead);
 			try {				
@@ -109,33 +123,7 @@ package tc.littleb.breezevideo
 			_commentDisplayList = [];
 			dispatchEvent(new Event('commentReady'));
 		}
-		/*private function goParseJSON(e:Event):void
-		{
-			*//* We can extract only limited infomation from JSON *//*
-			var loader2:URLLoader = URLLoader(e.target);
-			var comment_json:Object;
-			//throw new Error(loader2.data);
-			comment_json = JSON.decode(loader2.data);
-			_commentList = new Array();
-			var item:Object;
-			for each (item in comment_json) {		
-				*//* Process the comment list *//*				
-				var comment:Object =
-				{
-					anonymity: '',
-					date: '',					
-					mail: '',
-					no: 0,
-					thread:'',
-					user_id:'',
-					vpos:Number(item[1])*100,
-					text:item[7],
-					pos:(item[0]=='0')?'naka':'shita', color: item[3], size:item[4]
-				};								
-				_commentList.push(comment);
-			}
-			
-		}*/
+
 		private function goParse(e:Event):void
 		{
 			_commentXML = new XML();
@@ -165,7 +153,7 @@ package tc.littleb.breezevideo
 					user_id:item.@user_id,
 					vpos:int(item.@vpos),
 					text:item.toString(),
-					pos:'', color: '', size:''
+					pos:'', color: '', size:'', full: false
 				};
 				var mail:String=comment.mail;
 				var pos_pattern:RegExp = 
@@ -205,7 +193,12 @@ package tc.littleb.breezevideo
 				{
 					comment.size = 'meduim';					
 				}
-				_commentList.push(comment);					
+				var full_pattern:RegExp = /full/;
+				if (mail.search(full_pattern) != -1) {
+					comment.full = true;
+				}
+				
+				_commentList.push(comment);
 			}
 			_commentList.sortOn(['no'], [Array.NUMERIC | Array.DESCENDING]);
 			_commentNum = _commentList.length;
@@ -242,6 +235,7 @@ package tc.littleb.breezevideo
 		{
 			_freezed = true;
 			_firstCommentIndex = -1;
+			_firstNakaCommentIndex = -1;
 			_lastCommentIndex = -1;
 			_lastNakaCommentIndex = -1;
 			var comment:Object;
@@ -288,6 +282,70 @@ package tc.littleb.breezevideo
 			if (!_commentDisplayList || _commentDisplayList.length == 0) { return; }
 			
 			commentArea = 0;
+			/* Test if there are old comments to hide */
+			while (_firstCommentIndex < _commentDisplayList.length) {
+				/* When there is no element, skip */
+				if (_firstCommentIndex < 0) {
+					if (_lastCommentIndex < 0) { break; }
+					else { _firstCommentIndex = 0; }
+				}
+				
+				comment = _commentDisplayList[_firstCommentIndex];
+				
+				/* We reach the front */
+				if (comment.vpos + PlayerParams.HIDE_COMMENT_OFFSET >= time)
+				{
+					break;
+				}
+				
+				/* Test if the element is going to be removed */
+				if (comment.object)
+				{
+					/* Avoid clearing processing data */
+				   if ((comment.object as CommentTextField).comment_for != comment.no) {
+				   		comment.object = null;
+					
+				   } else {
+					if (comment.pos == 'shita') _shitaSprite.recycleField(comment.object);
+					else if (comment.pos == 'ue') _ueSprite.recycleField(comment.object);
+					if (comment.pos != 'naka') comment.object = null;
+				   }
+				
+				}
+				_firstCommentIndex++;
+			}
+			/* Test if there are old naka comments to hide */
+			while (_firstNakaCommentIndex < _commentDisplayList.length) {
+				/* When there is no element, skip */
+				if (_firstNakaCommentIndex < 0) {
+					if (_lastNakaCommentIndex < 0) { break; }
+					else { _firstNakaCommentIndex = 0; }
+				}
+				
+				comment = _commentDisplayList[_firstNakaCommentIndex];
+				
+				/* We reach the front */
+				if (comment.vpos + PlayerParams.UNLOAD_NAKA_COMMENT_OFFSET >= time)
+				{
+					break;
+				}
+				
+				/* Test if the element is going to be removed */
+				if (comment.object)
+				{
+					/* Avoid clearing processing data */
+				   if ((comment.object as CommentTextField).comment_for != comment.no) {
+				   		comment.object = null;
+					
+				   } else if (comment.pos == 'naka') {
+						_nakaSprite.recycleField(comment.object);
+						comment.object = null;
+				   }
+				
+				}
+				_firstNakaCommentIndex++;
+			}
+			
 			/* Test if there is new comments to load */
 			while (_lastCommentIndex + 1 < _commentDisplayList.length) {
 				nowTime = getTimer();
@@ -295,9 +353,9 @@ package tc.littleb.breezevideo
 				
 				comment = _commentDisplayList[_lastCommentIndex + 1];
 				/* We reach the front */
-				if (comment.vpos > time) { break; }
+				if (comment.vpos + PlayerParams.SHOW_COMMENT_OFFSET > time) { break; }
 				/* When we find elements that needs to load... */
-				if (comment.vpos + 300 >= time)  {
+				if (comment.vpos + PlayerParams.HIDE_COMMENT_OFFSET >= time)  {
 					if (comment.pos == 'shita' && !comment.object) {
 						comment.object = _shitaSprite.addComment(comment);
 						commentArea += comment.object.width * comment.object.height;
@@ -320,9 +378,9 @@ package tc.littleb.breezevideo
 
 				comment = _commentDisplayList[_lastNakaCommentIndex + 1];
 				/* We reach the front */
-				if (comment.vpos - 100 > time) { break; }
+				if (comment.vpos + PlayerParams.LOAD_NAKA_COMMENT_OFFSET > time) { break; }
 				/* When we find elements that needs to load... */
-				if (comment.vpos + 300 >= time ) {
+				if (comment.vpos + PlayerParams.UNLOAD_NAKA_COMMENT_OFFSET >= time ) {
 					if (comment.pos == 'naka' && !comment.object) {
 						comment.object = _nakaSprite.addComment(comment);
 						commentArea += comment.object.width * comment.object.height;
@@ -330,41 +388,7 @@ package tc.littleb.breezevideo
 				}
 				_lastNakaCommentIndex++;
 			}
-			/* Test if there old comments to hide */
-			while (_firstCommentIndex < _commentDisplayList.length) {
-				/* When there is no element, skip */
-				if (_firstCommentIndex < 0) {
-					if (_lastCommentIndex < 0) { break; }
-					else { _firstCommentIndex = 0; }
-				}
-				
-				comment = _commentDisplayList[_firstCommentIndex];
-				
-				/* We reach the front */
-				if (comment.vpos + 300 >= time)
-				{
-					break;
-				}
-				
-				/* Test if the element is going to be removed */
-				if (comment.object)
-				{
-					/* Avoid clearing processing data */
-				   if ((comment.object as CommentTextField).comment_for != comment.no) {
-				   		comment.object = null;
-					
-				   } else {
-				   					
-					if (comment.pos == 'naka') _nakaSprite.recycleField(comment.object);
-					else if (comment.pos == 'shita') _shitaSprite.recycleField(comment.object);
-					else if (comment.pos == 'ue') _ueSprite.recycleField(comment.object);
-					comment.object = null;
-				   }
-				
-				}
-				_firstCommentIndex++;
-			}
-			
+	
 		}
 		
 		private function _clearComment():void
@@ -413,6 +437,15 @@ package tc.littleb.breezevideo
 			}
 		}
 
+		public function get aspect16By9Mode():Boolean {
+				return _aspect16By9Mode;
+		}
+		/* Setter that will be triggered by UI or BreezeVideo to toggle the 16:9 mode. */
+		public function set aspect16By9Mode(mode:Boolean):void {
+			_aspect16By9Mode = mode;
+			generateMask();
+		}
+		
 		private function merge_sort(A:Array):Array
 		{			
 			return merge_sort_inner(A, 0, A.length-1);	
