@@ -238,6 +238,11 @@
 			/* Setter that will be triggered by UI or BreezeVideo to toggle the 16:9 mode. */
 			public function set aspect16By9Mode(mode:Boolean):void {
 				 _aspect16By9Mode = mode;
+				if (mode) {
+					aspectButton.label = "16:9";
+				} else {
+					aspectButton.label = "4:3";
+				}
 				 bcomment.aspect16By9Mode = mode;
 				 /* Dispatch a resize event */
 				 Application.application.dispatchEvent(new ResizeEvent('resize'));
@@ -245,10 +250,8 @@
 			public function toggleAspect(e:MouseEvent):void {
 				if (_aspect16By9Mode) {
 					aspect16By9Mode = false;
-					aspectButton.label = "4:3";
 				} else {
 					aspect16By9Mode = true;
-					aspectButton.label = "16:9";
 				}
 			}
 			/* In fullscreen mode, when mouse moves, 
@@ -503,7 +506,7 @@
 	</mx:Script>
 
 	<!-- We set playbackUpdateInterval as 20, because the "vpos" of comment XML is in 10 milliseconds -->	
-    <mx:VBox id="big_container" width="100%" x="0" y="0" visible="true">    	   
+    <mx:VBox id="big_container" width="100%" x="0" y="0" visible="true">
 		<mx:Canvas id="black_container" width="100%" height="384" backgroundColor="black" horizontalScrollPolicy="off">
 			<breezevideo:BreezeVideo id="bvideo" autoPlay="false" horizontalCenter="0" verticalCenter="0" volume="0.75" />
 			<breezevideo:Comment id="bcomment" x="0" y="0" visible="true" horizontalCenter="0" verticalCenter="0" />

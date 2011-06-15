@@ -72,11 +72,13 @@
 				
 				/* Set up the mask */
 				_swfMask = new Sprite();
+				_swfMask = Sprite(this.addChild(_swfMask));
+				
+				_swfMask.graphics.clear();
 				_swfMask.graphics.beginFill(0xFF0000);
 				_swfMask.graphics.drawRect(0, 0, super.width, super.height);				
 				_swfMask.graphics.endFill();
-				_swfMask = Sprite(this.addChild(_swfMask));
-				_swfLoader.mask = _swfMask;
+				this.mask = _swfMask;
 				
 				/* Use ForcibleLoader to load AVM1 SWF */
 				var fLoader:ForcibleLoader = new ForcibleLoader(_swfLoader);
@@ -101,8 +103,6 @@
 			_loaded = true;
 			_isSwf = true;
 			_swfMovieClip = event.currentTarget.content as MovieClip;
-			_swfMovieClip.scaleX = 1;
-			_swfMovieClip.scaleY = 1;
 			_swfFps = event.target.frameRate;
 			_duration = new Number(_swfMovieClip.totalFrames) / _swfFps;
 			/* Set Defaut Volume */
@@ -111,8 +111,14 @@
 			_swfMovieClip.soundTransform = transform;
 			/* Proceess comlete event */
 			_swfMovieClip.addEventListener(Event.ENTER_FRAME, swfEnterFrame);
-			/* Resize */
-			dispatchEvent(new Event('resize'));
+			
+			/* Switch off the 16:9 mode if the video's aspect radio < 3:2. */
+			if (_swfMovieClip.width / _swfMovieClip.height < 1.5) {
+				/* It will trigger a resize event */
+				parentApplication.aspect16By9Mode = false;
+			} else {
+				dispatchEvent(new Event('resize'));
+			}
 			
 			/* Initialize Timer */
 			_intervalTimer = new Timer(_updateInterval, 0);
@@ -214,7 +220,13 @@
 			}
 			
 			dispatchEvent(new Event('loadedmetadata'));
-			dispatchEvent(new Event('resize'));
+			/* Switch off the 16:9 mode if the video's aspect radio < 3:2. */
+			if (_streamWidth / _streamHeight < 1.5) {
+				/* It will trigger a resize event */
+				parentApplication.aspect16By9Mode = false;
+			} else {
+				dispatchEvent(new Event('resize'));
+			}
 		}
 		
 		private function intervalUpdate(e:TimerEvent):void {
@@ -245,18 +257,20 @@
 		private function resize(e:Event):void {
 			var scale:Number;
 			if (_isSwf && _swfMovieClip) {
-				scale = Math.min(super.width / _swfMovieClip.width, super.height / _swfMovieClip.height);
+				scale = Math.min(unscaledWidth / _swfLoader.contentLoaderInfo.width, unscaledHeight / _swfLoader.contentLoaderInfo.height);
 				_swfLoader.scaleX = scale;
 				_swfLoader.scaleY = scale;
-				_swfLoader.x = (super.width - _swfLoader.width) / 2;
-				_swfLoader.y = (super.height - _swfLoader.height) / 2;
+				var scaledLoaderWidth:Number = _swfLoader.contentLoaderInfo.width * scale;
+				var scaledLoaderHeight:Number = _swfLoader.contentLoaderInfo.height * scale;
 				
-				/* Set up the mask */
+				_swfLoader.x = (super.width - scaledLoaderWidth) * 0.5;
+				_swfLoader.y = (super.height - scaledLoaderHeight) * 0.5;
+				
+				/* Reset the mask size */
 				_swfMask.graphics.clear();
 				_swfMask.graphics.beginFill(0xFF0000);
-				_swfMask.graphics.drawRect(0, 0, super.width, super.height);				
+				_swfMask.graphics.drawRect(_swfLoader.x, _swfLoader.y, scaledLoaderWidth, scaledLoaderHeight);				
 				_swfMask.graphics.endFill();
-				_swfLoader.mask = _swfMask;				
 			
 			} else if (_video) {
 				scale = Math.min(super.width / _streamWidth, super.height / _streamHeight);
