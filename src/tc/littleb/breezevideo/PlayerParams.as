@@ -1,7 +1,7 @@
 package tc.littleb.breezevideo 
 {
 	/**
-	 * Record some constant that will be widely used throught the whold player.
+	 * Record some constant that will be widely used throught the whole player.
 	 * @author littlebtc
 	 */
 	public class PlayerParams 

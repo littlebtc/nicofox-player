@@ -112,7 +112,7 @@
 			/* Proceess comlete event */
 			_swfMovieClip.addEventListener(Event.ENTER_FRAME, swfEnterFrame);
 			
-			/* Switch off the 16:9 mode if the video's aspect radio < 3:2. */
+			/* Switch off the 16:9 mode if the video's aspect ratio < 3:2. */
 			if (_swfMovieClip.width / _swfMovieClip.height < 1.5) {
 				/* It will trigger a resize event */
 				parentApplication.aspect16By9Mode = false;
@@ -220,7 +220,7 @@
 			}
 			
 			dispatchEvent(new Event('loadedmetadata'));
-			/* Switch off the 16:9 mode if the video's aspect radio < 3:2. */
+			/* Switch off the 16:9 mode if the video's aspect ratio < 3:2. */
 			if (_streamWidth / _streamHeight < 1.5) {
 				/* It will trigger a resize event */
 				parentApplication.aspect16By9Mode = false;
