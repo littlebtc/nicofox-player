@@ -67,13 +67,17 @@
 			
 			private var _commentNumDetermined:Boolean = false;
 			[Bindable]
-			public var video_file:String;
-			public var comment_file:String;			
-			
+			public var videoFile:String;
+			public var commentFile:String;			
+			public var commentVariants:Array;
+
+      private var _selectedCommentVariant:String;
+      private var variantValues:Object = {'ja': '日本語', 'zh-tw': '中文 (台灣)', 'en-us': 'English (US)' };
+
 			private var _menu:Menu;
 			private var _menuProvider:Array = [];
 			private var _CommentNumsForSwitch:Array = [0, 100, 250, 500, 1000];
-			
+
 			/* Cache time to reduce the writing to TextField ... Orz */
 			private var _previousTime:int = -1;
 			
@@ -84,16 +88,24 @@
 			private function creationComplete():void
 			{										
 				drawLoading();
-				video_file = Application.application.parameters.videoFile;
-				bvideo.src = video_file;
-				comment_file = Application.application.parameters.commentFile;
-				
+				videoFile = Application.application.parameters.videoFile;
+				bvideo.src = videoFile;
+        commentFile = Application.application.parameters.commentFile;
+        commentVariants = (Application.application.parameters.commentVariants || "").split(",");
+        commentVariants = commentVariants.filter(function(element:*, index:int, arr:Array):Boolean { return element === "ja" || element === "zh-tw" || element ==="en-us" });
+        /* XXX: Record the used comment variant by shared objects */
+        if (commentVariants.length > 0) {
+          _selectedCommentVariant = commentVariants[0];
+        } else {
+          _selectedCommentVariant = "";
+        }
+
 				/* Append menu */
 				_menu = new Menu();
 				commentButton.popUp = _menu;
 				
-				//bcomment.uploaderCommentFile = uploader_comment_file;
-								
+				//bcomment.uploaderCommentFile = uploader_commentFile;
+					
 				bcomment.width = PlayerParams.PLAYER_WIDTH_16_BY_9;
 				bcomment.height = PlayerParams.PLAYER_HEIGHT;
 				
@@ -107,7 +119,7 @@
 				slider.addEventListener(SliderEvent.CHANGE, jumpTime);
 				pause.addEventListener(MouseEvent.CLICK, pauseVideo);
 				commentButton.addEventListener(MouseEvent.CLICK, toggleComment);
-				_menu.addEventListener(MenuEvent.ITEM_CLICK, changeCommentDisplayNum);
+				_menu.addEventListener(MenuEvent.ITEM_CLICK, commentMenuClicked);
 				repeat_switch.addEventListener(MouseEvent.CLICK, toggleRepeat);
 				muteButton.addEventListener(MouseEvent.CLICK, toggleMute);
 				volslider.addEventListener(SliderEvent.CHANGE, changeVolume);
@@ -128,7 +140,7 @@
 				myUI.addChild(myBitmap);
 				loadingCanvas.addChild(myUI);
 			}
-			/* Loading Frame, Phase 2: resize8 */
+			/* Loading Frame, Phase 2: resize */
 			private function resizeLoading():void {
 				var myUI:UIComponent = UIComponent(loadingCanvas.getChildAt(0));
 				myUI.graphics.beginFill(0x000000);
@@ -288,7 +300,7 @@
 			{
 				if (container2.visible == true) {
 					container2.visible = false;
-					Mouse.hide();					
+					Mouse.hide();
 				}		
 
 			}
@@ -312,37 +324,45 @@
 				bcomment.visible = !bcomment.visible;
 				updateCommentButtonLabel();
 			}
-			/* When user selects number of comment to display.
+			/* When user selects number of comment or the variant to display.
 			 * re-read the comments */
-			private function changeCommentDisplayNum(e:MenuEvent):void
-			{				
-				var num:int = e.item.value;
-				if (num > 0) {
-					bcomment.commentDisplayNum = num;
-					bcomment.visible = true;
-					updateCommentButtonLabel();
-				} else {
-					bcomment.visible = false;
-					updateCommentButtonLabel();
-				}
+			private function commentMenuClicked(e:MenuEvent):void
+      {
+        if (e.item.groupName == "commentNum") {
+          var num:int = e.item.value;
+          if (num > 0) {
+            bcomment.commentDisplayNum = num;
+            bcomment.visible = true;
+            updateCommentButtonLabel();
+          } else {
+            bcomment.visible = false;
+            updateCommentButtonLabel();
+          }
+          } else if (e.item.groupName == "commentVariant") {
+          _selectedCommentVariant = e.item.value;
+          loadComment(true);
+        }
 			}
 			
 			/* Determine what should we displayed on the label of popup button */
 			private function updateCommentButtonLabel():void {
-				_menuProvider = [];
-				if (bcomment.visible && bcomment.commentNum > 0) { 
+      _menuProvider = [];
+        /* The label part. */
+        var commentVariantLabel:String = (_selectedCommentVariant)?" (" + _selectedCommentVariant.substr(0, 2) + ")":"";
+				if (bcomment.visible && bcomment.commentNum > 0) {
 					/* -1: All */
 					if (bcomment.commentDisplayNum != bcomment.commentNum){
-						commentButton.label = bcomment.commentDisplayNum.toString()  + '/' + bcomment.commentNum.toString();
+						commentButton.label = bcomment.commentDisplayNum.toString()  + '/' + bcomment.commentNum.toString() + commentVariantLabel;
 					} else {
-						commentButton.label = 'All ('+ bcomment.commentNum.toString() +')';
+						commentButton.label = 'All ('+ bcomment.commentNum.toString() +')' + commentVariantLabel;
 					}
 					commentButton.setStyle('icon', comment_img_yes);
 
 				} else {
-					commentButton.label = "";
+					commentButton.label = commentVariantLabel;
 					commentButton.setStyle('icon', comment_img_no);
-				}
+        }
+        /* The menu part. */
 				if (bcomment.commentNum > 0) {
 					for (var i:int = 0; i < _CommentNumsForSwitch.length; i++) {
 						var num:int = _CommentNumsForSwitch[i];
@@ -363,13 +383,25 @@
 						type: 'radio',
 						groupName: 'commentNum',
 						toggled: (bcomment.visible && bcomment.commentNum == bcomment.commentDisplayNum)
-					});
-					_menu.dataProvider = _menuProvider;
-				} else {
-					_menu.dataProvider = null;
+            });
+					
 				}
 				
-				
+        if (_selectedCommentVariant) {
+          _menuProvider.push({ type: 'separator' });
+          for (var j:int = 0; j < commentVariants.length; j++) {
+            var commentVariant:String = commentVariants[j];
+            
+            _menuProvider.push( {
+              label: (commentVariant in variantValues)? variantValues[commentVariant] : commentVariant,
+              value: commentVariant,
+              type: 'radio',
+              groupName: 'commentVariant',
+              toggled: _selectedCommentVariant == commentVariant
+            });
+          }
+        }
+			 _menu.dataProvider = _menuProvider;
 			}
 			
 			/* Toggle whether to repeat */
@@ -397,17 +429,20 @@
 					bvideo.volume = num;
 				}
 			}
-			
+		  
+      /* For flv/mp4 videos, set keyfrmaes and load comments when the metadata is loaded. */
 			private function updateMetadata(e:Event):void
 			{
-				/* Set keyfrmaes */
 				if (bvideo.keyframeTimes.length > 0) {
 					slider.tickValues = bvideo.keyframeTimes.concat();
 				}
 				loadComment();
-			}
+      }
 
-					
+      /* For swf movie, load comments when the SWF is loaded. */
+			private function updateSwfLoaded(e:Event):void {
+				loadComment();			
+			}
 
 			private function pauseVideo(e:MouseEvent):void
 			{	
@@ -456,7 +491,7 @@
 					return;
 				} else {
 					_previousTime = currentTime;
-				}				
+				}
 				var mins:int = int(Math.floor(currentTime / 60));
 				var secs:int = currentTime % 60;
 				
@@ -473,26 +508,31 @@
 				if (num < 10) { return '0' + num.toString(); }
 				else { return num.toString(); }
 			}
-				private function updateSwfLoaded(e:Event):void {
-				loadComment();			
-			}
-			private function loadComment():void {				
-				/* NOTE: This is called by onmetadata, 
+			private function loadComment(fromVariantChanging:Boolean = false):void {				
+				/* NOTE: This is called by onmetadata or updateSwfLoaded
 				 * but onmetadata will be called every time when the video plays from the beginning */
-				if (_commentNumDetermined) { return; }
+        if (_commentNumDetermined && !fromVariantChanging) { return; }
+        if (fromVariantChanging) {
+          bcomment.prepareRereadComment();
+        }
 				_commentNumDetermined = true;
-				if (bvideo.duration < 60) {					
+				if (bvideo.duration < 60) {
 					bcomment.commentDisplayNum = 100;
 				} else if (bvideo.duration < 300) {
-					bcomment.commentDisplayNum = 250;					
+					bcomment.commentDisplayNum = 250;
 				} else if (bvideo.duration < 600) {
 					bcomment.commentDisplayNum = 500;
 				} else {
 					bcomment.commentDisplayNum = 1000;
-				}
-				bcomment.commentFile = comment_file;
-//				commentButton.labelField = "@label";				
-				updateCommentButtonLabel();
+        }
+        var pattern:RegExp = /\.(flv|mp4|swf)$/;
+        /* Try to find out the comment variants and get the right file. */
+        var commentFilePrefix:String = videoFile.replace(pattern, "");
+        if (_selectedCommentVariant == "ja") {
+          bcomment.commentFile = commentFilePrefix + ".xml";
+        } else {
+          bcomment.commentFile = commentFilePrefix + "[" + _selectedCommentVariant + "].xml";
+        }
 			}
 			private function getCommentCount(e:Event):void {
 				var vpos:Number = Math.floor(bvideo.currentTime * 100);
@@ -516,14 +556,14 @@
 	    
     
     <mx:VBox id="container2" height="40" width="100%" backgroundColor="#EEEEEE" paddingTop="10" paddingLeft="10" paddingRight="10">        
-        <mx:HBox horizontalGap="3">        	
-        <mx:Button id="pause" label="||"/>
+        <mx:HBox horizontalGap="3">
+        <mx:Button id="pause" label="||" width="45"/>
 		<mx:HSlider id="slider" value="{bvideo.currentTime}"  maximum="{bvideo.duration}" slideDuration="0" liveDragging="true" />
 		<mx:Text id="timeText" text="" minWidth="90" />
 		
 		<mx:Button id="repeat_switch" icon="{repeat_img}" width="25"/>							
-		<mx:PopUpButton id="commentButton" width="120" />
-		<mx:Button id="aspectButton" label="16:9" width="50" />
+		<mx:PopUpButton id="commentButton" width="135" />
+		<mx:Button id="aspectButton" label="16:9" width="45" />
 		
 		<mx:Button id="muteButton" icon="{volume_img}" width="20" />
 		<mx:HSlider id="volslider" showTrackHighlight="true" tickInterval="0.05" value="0.75" width="55"  maximum="1" />

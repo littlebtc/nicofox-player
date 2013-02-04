@@ -111,14 +111,13 @@ package tc.littleb.breezevideo
 			loader.addEventListener(Event.COMPLETE, goParse);
 			loader.addEventListener(IOErrorEvent.IO_ERROR, _failRead);
 			try {				
-                loader.load(request);
-
-            } catch (error:Error) {
-                trace("Unable to load requested document.");
-				_failRead();
-            }
+        loader.load(request);
+      } catch (error:Error) {
+        trace("Unable to load requested document.");
+			  _failRead(new Event("LoaderError"));
+      }
 		}
-		private function _failRead():void {
+		private function _failRead(e:Event):void {
 			_commentList = [];
 			_commentDisplayList = [];
 			dispatchEvent(new Event('commentReady'));
@@ -216,7 +215,7 @@ package tc.littleb.breezevideo
 			_commentDisplayList = _commentList.concat();
 			/* Sort the comment list and splice */
 			if (_commentDisplayNum > 0)
-			{				
+			{
 				_commentDisplayList = _commentDisplayList.slice(0, Math.min((_commentDisplayNum), (_commentDisplayList.length)));
 				_commentDisplayList.sortOn(['no'], [Array.NUMERIC]);
 				/* Sort the comment list. This CANNOT be done by: 
@@ -229,6 +228,10 @@ package tc.littleb.breezevideo
 			_commentDisplayNum = _commentDisplayList.length;			
 			_freezed = false;
 		}
+
+    public function prepareRereadComment():void {
+      _fileReadCompleted = false;
+    }
 
 		/* After seeking, clear the old comment reading line */
 		public function purgeIndex():void
