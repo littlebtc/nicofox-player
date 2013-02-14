@@ -13,7 +13,8 @@
 		<![CDATA[
 			
 			import flash.display.Sprite;
-			import flash.events.MouseEvent;
+      import flash.events.MouseEvent;
+      import flash.net.SharedObject;
 			import mx.core.BitmapAsset;
 			import mx.core.UIComponent;
 			import mx.events.*;
@@ -23,7 +24,9 @@
 			import flash.display.StageDisplayState;
 			import tc.littleb.breezevideo.*;
 			import flash.ui.*;
-			
+
+      private var sharedObject:SharedObject;
+
 			public var hide_timeout_activated:Boolean;
 			public var mouse_timeout_activated:Boolean;
 			public var hide_timeout:Number;
@@ -87,17 +90,45 @@
 			/* creationComplete */
 			private function creationComplete():void
 			{										
-				drawLoading();
+        drawLoading();
+        /* Get video parameters. */
 				videoFile = Application.application.parameters.videoFile;
 				bvideo.src = videoFile;
         commentFile = Application.application.parameters.commentFile;
         commentVariants = (Application.application.parameters.commentVariants || "").split(",");
         commentVariants = commentVariants.filter(function(element:*, index:int, arr:Array):Boolean { return element === "ja" || element === "zh-tw" || element ==="en-us" });
-        /* XXX: Record the used comment variant by shared objects */
-        if (commentVariants.length > 0) {
-          _selectedCommentVariant = commentVariants[0];
+        _selectedCommentVariant = "";
+        /* Get the preferences from shared objects. */
+        try {
+          sharedObject = SharedObject.getLocal("nicofox-player");
+        } catch (err:Error) {
+        /* Ignore permission failures. */
+        }
+        if (sharedObject) {
+          /* Use the volume stored in shared object. Use typeof to avoid the case that it is undefined. */
+          if (typeof(sharedObject.data.volume) == "number") {
+            var soVolume:Number = sharedObject.data.volume;
+            bvideo.volume = soVolume;
+            if (soVolume == 0.0) {
+              muteButton.setStyle('icon', volume_img_no);
+				      volslider.visible = false;
+            } else {
+              volslider.value = soVolume;
+            }
+          }
+          /* Use previously chosen comment variant if exists on this video. */
+          if (commentVariants.length > 0) {
+            var soVariantIndex = commentVariants.indexOf(sharedObject.data.commentVariant);
+            if (soVariantIndex >= 0) {
+              _selectedCommentVariant = commentVariants[soVariantIndex];
+            } else {
+              _selectedCommentVariant = commentVariants[0];
+            }
+          }
         } else {
-          _selectedCommentVariant = "";
+          if (commentVariants.length > 0) {
+            _selectedCommentVariant = commentVariants[0];
+          }
         }
 
 				/* Append menu */
@@ -338,7 +369,10 @@
             bcomment.visible = false;
             updateCommentButtonLabel();
           }
-          } else if (e.item.groupName == "commentVariant") {
+        } else if (e.item.groupName == "commentVariant") {
+          if (sharedObject) {
+            sharedObject.data.commentVariant = e.item.value;
+          }
           _selectedCommentVariant = e.item.value;
           loadComment(true);
         }
@@ -421,12 +455,18 @@
 				} else {
 					bvideo.volume = 0;
 					muteButton.setStyle('icon', volume_img_no);
-				}
+        }
+        if (sharedObject) {
+          sharedObject.data.volume = bvideo.volume;
+        }
 			}
 			private function changeVolume(e:SliderEvent):void {
 				var num:Number = e.value;
 				if (volslider.visible) {
 					bvideo.volume = num;
+          if (sharedObject) {
+            sharedObject.data.volume = num;
+          }
 				}
 			}
 		  
@@ -527,11 +567,15 @@
         }
         var pattern:RegExp = /\.(flv|mp4|swf)$/;
         /* Try to find out the comment variants and get the right file. */
-        var commentFilePrefix:String = videoFile.replace(pattern, "");
-        if (_selectedCommentVariant == "ja") {
-          bcomment.commentFile = commentFilePrefix + ".xml";
+        if (_selectedCommentVariant) {
+          var commentFilePrefix:String = videoFile.replace(pattern, "");
+          if (_selectedCommentVariant == "ja") {
+            bcomment.commentFile = commentFilePrefix + ".xml";
+          } else {
+            bcomment.commentFile = commentFilePrefix + "[" + _selectedCommentVariant + "].xml";
+          }
         } else {
-          bcomment.commentFile = commentFilePrefix + "[" + _selectedCommentVariant + "].xml";
+          bcomment.commentFile = commentFile;
         }
 			}
 			private function getCommentCount(e:Event):void {
